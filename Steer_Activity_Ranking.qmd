@@ -4,35 +4,86 @@ format: html
 editor: visual
 ---
 
-## Quarto
+# Research compendium for Cunningham-Hollinger, Barr, and Field (2026)
 
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
+This R-based research compendium supports the analyses from *ARTICLE TITLE*, which shows
 
-## Running Code
+View the raw source code and output at: provide link
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+**When using the code included in this research compendium, please cite *all* of the following:**
 
-```{r}
-1 + 1
-print("hello")
-#code
-```
-
-You can add options to executable code like this
+## 1.0 Set Up Environment
 
 ```{r}
-#| echo: false
-2 * 2
-```
-
-The `echo: false` option disables the printing of code (only output is displayed).
-
-```{r}
-
+knitr::opts_knit$set(root.dir = "C:/Users/ebarr3/OneDrive - University of Wyoming/USDA_Padlock/Steer_Activity_Ranking")
 ```
 
 ```{r}
-1 + 1
-print("hello")
-#code
+packages <-c('dplyr','tidyr','magrittr','corrr', 'sf',
+             'ggplot2','ggcorrplot','ggpubr','tidyverse','PerformanceAnalytics',
+             'geosphere', 'lubridate','hms','forcats','ggdist',
+             'gganimate', 'zoo')
+for(p in packages) if(p %in% rownames(installed.packages()) == F) { install.packages(p) }
+for(p in packages) suppressPackageStartupMessages(library(p,quietly=T,character.only=T))
+
+```
+
+## 2.0 Import and Organize Data
+
+```{r}
+df<- read.csv("Pro_Tags.csv")
+
+### remove columns without cattle ID number or spatial data
+df <- df[!(df$cattleNumber==""),]
+df <- df[!is.na(df$longitude),]
+
+```
+
+## 3.0 Summarize Movement
+
+```{r}
+
+#sum steps across the study period
+steps_sum<- aggregate(step_Count~cattleNumber,FUN=sum,data=df)
+
+#sum seconds spent walking across the study period
+walking_sum <- aggregate(seconds_Walking~cattleNumber,FUN=sum,data=df)
+
+#sum number of mounts across the study period
+mounting_sum <- aggregate(mount_Count~cattleNumber,FUN=sum,data=df)
+```
+
+```{r}
+#average the heart rate across the study period
+bpm_mean <- aggregate(heart_Rate_BPM~cattleNumber,FUN=mean,data=df)
+
+#average number of steps
+steps_mean <- df%>%
+  select(c("cattleNumber","createdByDate","step_Count"))%>%
+  aggregate(step_Count~cattleNumber+createdByDate,FUN=sum,data=.)%>%
+  aggregate(step_Count~cattleNumber,FUN=mean,data=.)
+
+#average the seconds spent walking
+walking_mean <- df%>%
+  select(c("cattleNumber","createdByDate","seconds_Walking"))%>%
+  aggregate(seconds_Walking~cattleNumber+createdByDate,FUN=sum,data=.)%>%
+  aggregate(seconds_Walking~cattleNumber,FUN=mean,data=.)
+
+#average the mount count
+mounting_mean <- df%>%
+  select(c("cattleNumber","createdByDate","mount_Count"))%>%
+  aggregate(mount_Count~cattleNumber+createdByDate,FUN=sum,data=.)%>%
+  aggregate(mount_Count~cattleNumber,FUN=mean,data=.)
+
+```
+
+```{r}
+#create a mobility summary with the new metrics included
+summary_mobility <- merge(steps_sum,steps_mean,by="cattleNumber")%>%
+  merge(.,bpm_mean,by="cattleNumber")%>%
+  merge(.,walking_mean,by="cattleNumber")%>%
+  merge(.,walking_sum,by="cattleNumber")%>%
+  merge(., mounting_sum, by="cattleNumber")%>%
+  merge(., mounting_mean, by ="cattleNumber")%>%
+  setNames(c("cattleNumber","total_steps","mean_daily_steps","mean_bpm","mean_daily_seconds_walking","total_seconds_walking", "total_mount", "mean_daily_mount"))
 ```
